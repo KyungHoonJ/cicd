@@ -1,50 +1,61 @@
 # XML을 대체하는 문서 / YML, YXML
 name: Deploy React to EC2
+# 액션의 이름
 
 on:
-  # ~했을 떄
+  # ~했을 떄(실행 조건)
   push:
     # push 했을 때
     branches:
       # 브랜치에
       - main
       # 메인 브랜치에
+  merge:
+    branches:
+      - main
 
 jobs:
   # 작업들
   test:
     # 작업명
     runs-on: ubuntu-latest
-    # 작업 환경
+    # 작업 환경 // 16, 18, 20 -> 22, 24
     steps:
       # 작업들을 순서에 맞춰서 작성
       - name: "testing"
         # 작업명은 testing 이고
-        run: echo "now test"
+        run: |
+          echo "now test"
+          echo "now test"
         # 작업 내용은 echo "now test"
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
+        # checkout repository라는 이름을 가진 작업
         uses: actions/checkout@v4 # import
+        # actions에 있는 v4 버전의 checkout을 사용한다.
+        # checkout -> 이동한다 -> main 브랜치로 이동하고 전부 받아온다.
 
       - name: Set up Node.js
+        # Node 준비
         uses: actions/setup-node@v4
+        # actions에 있는 v4 버전의 setup-node을 사용한다.
         with:
+          # "같이" 필요한 옵션
           node-version: "20"
+          # import setupNode from 'setup-node';
+          # setupNode({ node-version: "20" })
 
+      # 여기서부터 -----------------------------
       - name: Add SSH key
+        # SHH 키를 추가한다.
         uses: webfactory/ssh-agent@v0.5.4
+        # webfactory에 있는 v0.5.4 버전의 ssh-agent을 사용한다.
         with:
+          # 아래의 옵션을 사용한다.
           ssh-private-key: ${{ secrets.EC2_KEY }}
-
-      - name: Install dependencies of project
-        working-directory: ./
-        run: npm i
-
-      - name: Build project
-        working-directory: ./
-        run: npm run build
+          # github option의 secret에 EC2_KEY라는 이름으로 value는 실재 pem의 내용
 
       - name: Ensure SSH directory exists
         run: |
@@ -53,12 +64,36 @@ jobs:
 
       - name: Add SSH known hosts
         run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      # 여기까지는 ----------------------------- SSH 요청, FTP 접근 등을 위한 ssh private key 준비
+      # EC에 접속하여 작업하기 위해 필수
+
+      - name: Install dependencies of project
+        # 프로젝트의 라이버러리(의존성) 설치
+        working-directory: ./
+        # 작업 폴더 위치(./ 기 때문에 프로젝트(git 폴더가 위치한) root에서 작업한다.)
+        run: npm i
+
+      - name: Build project
+        # 프로젝트를 빌드 -> React 코드를 배포하기 위해 HTML, CSS, JS로 변환한다.
+        # 다른 언어에서는 뭐라고 할까? -> 빌드(컴파일)
+        working-directory: ./
+        run: npm run build
 
       - name: Copy files to EC2
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "rm -rf /var/www/html"
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p /var/www/html"
           rsync -avz -e "ssh" ./build/ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/var/www/html
+        # ssh -i "deploy-test.pem" ubuntu@ec2-43-203-209-15.ap-northeast-2.compute.amazonaws.com
+        # ssh(원격 접속기)를 사용하여 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} 서버에 "rm -rf /var/www/html" 문자열을 요청 보냈다.
+        #   요청 받은 서버는 rm -rf /var/www/html를 명령어로써 실행한다.
+        # root@localhost, 'test'@'%'
+        # -p , --parents 필요시 상위디렉토리 생성
+
+        # rsync 프로그램을 사용해서
+        # ./build/(위에서 빌드한 Project의 결과물이 있는 위치)
+        # ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/var/www/html(원격에서의 어떤 위치)
+
         # rsync == filezilla
         # ./build ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/var/www/html
         # == 현재 폴더의 build 폴더를 EC2 유저로 EC2 인스턴스(HOST)에 접속해서 /var/www/html 폴더에 복사해달라
@@ -67,3 +102,5 @@ jobs:
         # -a : 전부
         # -v : 모두 출력해달라
         # -z : 권한, 소유자, 그룹 등 유지
+  # node-check:
+  # node-check라는 작업을 추가한다.
